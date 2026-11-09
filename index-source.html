@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#213cc9"><meta name="description" content="One battery, two rocket couriers. A high-voltage arcade relay."><title>Turbo Relay</title><link rel="stylesheet" href="style.css"></head>
+<body><main id="game" aria-label="Turbo Relay">
+<header><div class="brand"><i aria-hidden="true">↯</i><span>TURBO<br>RELAY</span></div><div id="circuit">CIRCUIT 01</div><button id="music" aria-label="Music on" title="Toggle music">♫</button><button id="menu" aria-label="Settings">Ⅱ</button></header>
+<div id="arena"><canvas id="track" aria-label="Two rocket couriers on their relay tracks"></canvas><div id="stage-tag"><span id="stage-num">01</span><span id="stage-name">SUNSET EXPRESS</span></div><div id="callout" aria-live="polite"></div></div>
+<div id="dock"><div class="meters"><span class="lane-tag a"><b>▲ A</b><i id="meter-a"></i></span><span class="lane-tag b"><b>◆ B</b><i id="meter-b"></i></span><span id="fuses" aria-label="3 fuses">◆◆◆</span></div><div id="cue">ONE BATTERY · TWO BOTS</div><button id="action" class="primary">GO LIVE <b aria-hidden="true">→</b></button></div>
+<section id="panel" hidden aria-live="polite"></section>
+</main><script type="module" src="app.mjs"></script></body></html>
