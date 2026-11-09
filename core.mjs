@@ -35,8 +35,9 @@ export function begin(r){
 export function toggle(r){
  if(r.mode!=='ride')return false;
  const both=r.dist.every(x=>x<100);
- if(both)r.active=r.active===0?1:0;
- else r.active=r.active<0?r.dist.findIndex(x=>x<100):-1;
+ if(r.active<0)r.active=goLane(r);
+ else if(!both||bothBlocked(r))r.active=-1;
+ else r.active=1-r.active;
  r.swaps++;return true;
 }
 export function gateState(level,lane,index,time){
@@ -47,6 +48,19 @@ export function gateState(level,lane,index,time){
 export function nextGate(r,lane){
  const gates=LEVELS[r.level].gates[lane],index=gates.findIndex(x=>x>r.dist[lane]);
  return index<0?null:{index,at:gates[index]};
+}
+export function gateThreat(r,lane){
+ const gate=nextGate(r,lane);
+ if(!gate)return false;
+ const eta=(gate.at-r.dist[lane])/LEVELS[r.level].speed;
+ return eta<.78&&!gateState(r.level,lane,gate.index,r.t+eta).open;
+}
+export function bothBlocked(r){
+ return r.dist.every(x=>x<100)&&gateThreat(r,0)&&gateThreat(r,1);
+}
+export function goLane(r){
+ const lanes=[0,1].filter(i=>r.dist[i]<100);
+ return lanes.find(i=>!gateThreat(r,i))??lanes[0];
 }
 export function advance(r,dt){
  if(r.mode!=='ride')return [];
@@ -60,7 +74,7 @@ export function advance(r,dt){
   if(!state.open){
    const prior=L.gates[lane][gate.index-1]??0;
    r.dist[lane]=Math.max(prior,gate.at-7);
-   r.hits++;r.combo=0;
+   r.hits++;r.combo=0;r.active=-1;
    events.push({type:'hit',lane,at:gate.at});
    if(r.hits>=3){r.mode='loss';events.push({type:'finish'});}
    return events;

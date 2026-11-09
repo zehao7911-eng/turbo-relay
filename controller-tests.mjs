@@ -65,9 +65,8 @@ ok(JSON.stringify(b.test.r)===JSON.stringify(paused),'active times and both bot 
 b.clickPanel('resume');ok(full.count.starts===1,'resume begins the actual host visit');
 let last=-1;
 for(let i=0;i<3500&&b.test.r.mode==='ride';i++){
- const r=b.test.r,L=core.LEVELS[r.level],lane=r.active<0?r.dist.findIndex(x=>x<100):r.active,g=core.nextGate(r,lane);
- const eta=g?(g.at-r.dist[lane])/L.speed:Infinity,open=g?core.gateState(r.level,lane,g.index,r.t+eta).open:true;
- if(r.t-last>.25&&(r.active<0?open:eta<.78&&!open)){b.test.action();last=r.t;}
+ const r=b.test.r,lane=r.active<0?core.goLane(r):r.active,red=core.gateThreat(r,lane);
+ if(r.t-last>.25&&(r.active<0?!red:red)){b.test.action();last=r.t;}
  b.frame();
 }
 await flush();

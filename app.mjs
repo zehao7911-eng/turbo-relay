@@ -1,4 +1,4 @@
-import {LEVELS,newRun,profile,restore,begin,toggle,advance,stars,commit,mergeProfile,gateState,nextGate} from './core.mjs';
+import {LEVELS,newRun,profile,restore,begin,toggle,advance,stars,commit,mergeProfile,gateThreat,bothBlocked,goLane} from './core.mjs';
 import {bridge} from './sdk.mjs';
 import {RelayArt} from './art.mjs';
 import {RelayAudio} from './audio.mjs';
@@ -57,21 +57,18 @@ function paint(){
  $('meter-a').style.setProperty('--fill',r.dist[0]+'%');$('meter-b').style.setProperty('--fill',r.dist[1]+'%');
  $('fuses').textContent='◆'.repeat(3-r.hits)+'◇'.repeat(r.hits);$('fuses').setAttribute('aria-label',(3-r.hits)+' fuses');
  $('music').setAttribute('aria-pressed',String(p.music));$('music').setAttribute('aria-label',p.music?'Music on':'Music off');
- const a=$('action'),cue=$('cue'),both=r.dist.every(x=>x<100);
+ const a=$('action'),cue=$('cue'),both=r.dist.every(x=>x<100),brake=!both||bothBlocked(r);
  a.disabled=!!panel;
- const word=r.mode==='ready'?'GO LIVE':both?'SWITCH POWER':r.active<0?'GO':'BRAKE';
- if(a.dataset.label!==word){a.dataset.label=word;a.innerHTML=word+' <b aria-hidden="true">'+(both&&r.mode==='ride'?'⇄':r.active>=0&&!both?'■':'→')+'</b>';}
+ const word=r.mode==='ready'?'GO LIVE':r.active<0?'GO':brake?'BRAKE':'SWITCH POWER';
+ if(a.dataset.label!==word){a.dataset.label=word;a.innerHTML=word+' <b aria-hidden="true">'+(word==='SWITCH POWER'?'⇄':word==='BRAKE'?'■':'→')+'</b>';}
  a.dataset.lane=r.active===1?'b':'a';
  let note='GREEN = GO · RED = SWITCH',danger=false;
  if(r.mode==='ride'){
-  const lane=r.active<0?r.dist.findIndex(x=>x<100):r.active,g=nextGate(r,lane);
-  if(g){
-   const eta=(g.at-r.dist[lane])/L.speed,arrival=gateState(r.level,lane,g.index,r.t+eta);
-   danger=eta<.78&&!arrival.open;
-   if(r.active<0)note=arrival.open?'GREEN WINDOW · GO':'WAIT FOR GREEN';
-   else if(danger)note=both?'RED AHEAD · SWITCH!':'RED AHEAD · BRAKE!';
-   else note=(lane?'◆ B':'▲ A')+' POWERED'+(both?' · SWITCH TO CHANGE':' · LAST BOT');
-  }else note='CLEAR TO DOCK';
+  const lane=r.active<0?goLane(r):r.active;
+  danger=gateThreat(r,lane);
+  if(r.active<0)note=danger?'WAIT FOR GREEN':'GREEN WINDOW · GO';
+  else if(danger)note=brake?'RED AHEAD · BRAKE!':'RED AHEAD · SWITCH!';
+  else note=(lane?'◆ B':'▲ A')+' POWERED'+(both?' · SWITCH TO CHANGE':' · LAST BOT');
  }
  cue.textContent=note;cue.dataset.danger=String(danger);
 }

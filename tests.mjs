@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
-import {LEVELS,newRun,profile,restore,begin,toggle,advance,stars,commit,mergeProfile,gateState,nextGate} from './core.mjs';
+import {LEVELS,newRun,profile,restore,begin,toggle,advance,stars,commit,mergeProfile,gateState,nextGate,goLane,gateThreat,bothBlocked} from './core.mjs';
 let checks=0;
 function check(value,message){assert.ok(value,message);checks++;}
 function course(r,dt,lead=.78){
  const L=LEVELS[r.level],events=[];let last=-1;
  while(r.mode==='ride'&&r.t<60){
-  const lane=r.active<0?r.dist.findIndex(x=>x<100):r.active,g=nextGate(r,lane);
+  const lane=r.active<0?goLane(r):r.active,g=nextGate(r,lane);
   const eta=g?(g.at-r.dist[lane])/L.speed:Infinity;
   const open=g?gateState(r.level,lane,g.index,r.t+eta).open:true;
-  if(r.t-last>.25&&(r.active<0?open:eta<lead&&!open)){toggle(r);last=r.t;}
+  if(r.t-last>.25&&(r.active<0?!gateThreat(r,lane):eta<lead&&!open)){toggle(r);last=r.t;}
   events.push(...advance(r,dt));
  }
  return events;
@@ -34,9 +34,21 @@ for(let level=0;level<6;level++){
  }
  check(found,'a clean three-star timing route exists for circuit '+(level+1));
 }
-const idle=newRun(1);begin(idle);let finish=0;
-for(let i=0;i<1000&&idle.mode==='ride';i++)finish+=advance(idle,1/60).filter(e=>e.type==='finish').length;
-check(idle.mode==='loss'&&idle.hits===3&&finish===1,'repeated closed-gate hits exhaust exactly three fuses');
+const idle=newRun(1);begin(idle);
+while(idle.hits===0)advance(idle,1/60);
+check(idle.active===-1,'first crash brakes the battery');
+const stopped=idle.dist.slice();
+for(let i=0;i<180;i++)advance(idle,1/60);
+check(idle.hits===1&&idle.dist.every((x,i)=>x===stopped[i]),'idle after crash does not burn more fuses');
+const danger=newRun(3);begin(danger);danger.t=1.2;danger.dist=[21,31];
+check(bothBlocked(danger),'dual red-window fixture');
+toggle(danger);advance(danger,.05);
+check(danger.active===-1&&danger.dist[0]===21&&danger.dist[1]===31,'one brake tap safely stops both bots');
+while(gateThreat(danger,goLane(danger)))advance(danger,1/60);
+toggle(danger);check(danger.active===goLane(danger),'GO chooses a safe unfinished lane');
+const lastFuse=newRun(1);begin(lastFuse);lastFuse.hits=2;let finish=0;
+for(let i=0;i<1000&&lastFuse.mode==='ride';i++)finish+=advance(lastFuse,1/60).filter(e=>e.type==='finish').length;
+check(lastFuse.mode==='loss'&&lastFuse.hits===3&&finish===1,'third closed-gate hit sends one loss');
 const checkpoint=newRun(3);begin(checkpoint);advance(checkpoint,.03);toggle(checkpoint);
 const restored=restore(JSON.parse(JSON.stringify(checkpoint)),progress);
 assert.deepEqual(restored,checkpoint);checks++;

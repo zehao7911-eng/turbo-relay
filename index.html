@@ -51,8 +51,9 @@ function begin(r){
 function toggle(r){
  if(r.mode!=='ride')return false;
  const both=r.dist.every(x=>x<100);
- if(both)r.active=r.active===0?1:0;
- else r.active=r.active<0?r.dist.findIndex(x=>x<100):-1;
+ if(r.active<0)r.active=goLane(r);
+ else if(!both||bothBlocked(r))r.active=-1;
+ else r.active=1-r.active;
  r.swaps++;return true;
 }
 function gateState(level,lane,index,time){
@@ -63,6 +64,19 @@ function gateState(level,lane,index,time){
 function nextGate(r,lane){
  const gates=LEVELS[r.level].gates[lane],index=gates.findIndex(x=>x>r.dist[lane]);
  return index<0?null:{index,at:gates[index]};
+}
+function gateThreat(r,lane){
+ const gate=nextGate(r,lane);
+ if(!gate)return false;
+ const eta=(gate.at-r.dist[lane])/LEVELS[r.level].speed;
+ return eta<.78&&!gateState(r.level,lane,gate.index,r.t+eta).open;
+}
+function bothBlocked(r){
+ return r.dist.every(x=>x<100)&&gateThreat(r,0)&&gateThreat(r,1);
+}
+function goLane(r){
+ const lanes=[0,1].filter(i=>r.dist[i]<100);
+ return lanes.find(i=>!gateThreat(r,i))??lanes[0];
 }
 function advance(r,dt){
  if(r.mode!=='ride')return [];
@@ -76,7 +90,7 @@ function advance(r,dt){
   if(!state.open){
    const prior=L.gates[lane][gate.index-1]??0;
    r.dist[lane]=Math.max(prior,gate.at-7);
-   r.hits++;r.combo=0;
+   r.hits++;r.combo=0;r.active=-1;
    events.push({type:'hit',lane,at:gate.at});
    if(r.hits>=3){r.mode='loss';events.push({type:'finish'});}
    return events;
@@ -487,21 +501,18 @@ function paint(){
  $('meter-a').style.setProperty('--fill',r.dist[0]+'%');$('meter-b').style.setProperty('--fill',r.dist[1]+'%');
  $('fuses').textContent='◆'.repeat(3-r.hits)+'◇'.repeat(r.hits);$('fuses').setAttribute('aria-label',(3-r.hits)+' fuses');
  $('music').setAttribute('aria-pressed',String(p.music));$('music').setAttribute('aria-label',p.music?'Music on':'Music off');
- const a=$('action'),cue=$('cue'),both=r.dist.every(x=>x<100);
+ const a=$('action'),cue=$('cue'),both=r.dist.every(x=>x<100),brake=!both||bothBlocked(r);
  a.disabled=!!panel;
- const word=r.mode==='ready'?'GO LIVE':both?'SWITCH POWER':r.active<0?'GO':'BRAKE';
- if(a.dataset.label!==word){a.dataset.label=word;a.innerHTML=word+' <b aria-hidden="true">'+(both&&r.mode==='ride'?'⇄':r.active>=0&&!both?'■':'→')+'</b>';}
+ const word=r.mode==='ready'?'GO LIVE':r.active<0?'GO':brake?'BRAKE':'SWITCH POWER';
+ if(a.dataset.label!==word){a.dataset.label=word;a.innerHTML=word+' <b aria-hidden="true">'+(word==='SWITCH POWER'?'⇄':word==='BRAKE'?'■':'→')+'</b>';}
  a.dataset.lane=r.active===1?'b':'a';
  let note='GREEN = GO · RED = SWITCH',danger=false;
  if(r.mode==='ride'){
-  const lane=r.active<0?r.dist.findIndex(x=>x<100):r.active,g=nextGate(r,lane);
-  if(g){
-   const eta=(g.at-r.dist[lane])/L.speed,arrival=gateState(r.level,lane,g.index,r.t+eta);
-   danger=eta<.78&&!arrival.open;
-   if(r.active<0)note=arrival.open?'GREEN WINDOW · GO':'WAIT FOR GREEN';
-   else if(danger)note=both?'RED AHEAD · SWITCH!':'RED AHEAD · BRAKE!';
-   else note=(lane?'◆ B':'▲ A')+' POWERED'+(both?' · SWITCH TO CHANGE':' · LAST BOT');
-  }else note='CLEAR TO DOCK';
+  const lane=r.active<0?goLane(r):r.active;
+  danger=gateThreat(r,lane);
+  if(r.active<0)note=danger?'WAIT FOR GREEN':'GREEN WINDOW · GO';
+  else if(danger)note=brake?'RED AHEAD · BRAKE!':'RED AHEAD · SWITCH!';
+  else note=(lane?'◆ B':'▲ A')+' POWERED'+(both?' · SWITCH TO CHANGE':' · LAST BOT');
  }
  cue.textContent=note;cue.dataset.danger=String(danger);
 }
