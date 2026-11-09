@@ -66,7 +66,7 @@ b.clickPanel('resume');ok(full.count.starts===1,'resume begins the actual host v
 let last=-1;
 for(let i=0;i<3500&&b.test.r.mode==='ride';i++){
  const r=b.test.r,lane=r.active<0?core.goLane(r):r.active,red=core.gateThreat(r,lane);
- if(r.t-last>.25&&(r.active<0?!red:red)){b.test.action();last=r.t;}
+ if(r.active>=0&&r.dist.every(d=>d<100)&&r.t-last>.25&&red&&!core.gateThreat(r,1-lane)){b.test.action();last=r.t;}
  b.frame();
 }
 await flush();

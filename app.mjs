@@ -1,4 +1,4 @@
-import {LEVELS,newRun,profile,restore,begin,toggle,advance,stars,commit,mergeProfile,gateThreat,bothBlocked,goLane} from './core.mjs';
+import {LEVELS,newRun,profile,restore,begin,toggle,pilot,stars,commit,mergeProfile,gateThreat} from './core.mjs';
 import {bridge} from './sdk.mjs';
 import {RelayArt} from './art.mjs';
 import {RelayAudio} from './audio.mjs';
@@ -33,8 +33,7 @@ function drawPanel(){
   html='<small>CIRCUIT '+String(r.level+1).padStart(2,'0')+' · '+L.word+'</small><h2>'+(win?(r.level===5?'RELAY CHAMP!':'BOTH DOCKED!'):'FUSES OUT!')+'</h2>'+
    '<div class="stars" aria-label="'+rank+' stars">'+'★'.repeat(rank)+'☆'.repeat(3-rank)+'</div>'+
    '<div class="stats"><span>SCORE<strong>'+r.score+'</strong></span><span>TIME<strong>'+r.t.toFixed(1)+'s</strong></span><span>CHAIN<strong>×'+r.bestCombo+'</strong></span></div>'+
-   button(win&&r.level<5?'NEXT CIRCUIT':win?'CIRCUIT SELECT':'TRY AGAIN',win&&r.level<5?'next':win?'select':'retry')+
-   '<div class="row">'+button(win?'REPLAY':'CIRCUITS',win?'retry':'select',false)+button('SETTINGS','settings',false)+'</div>';
+   button(win&&r.level<5?'NEXT CIRCUIT':win?'CIRCUIT SELECT':'TRY AGAIN',win&&r.level<5?'next':win?'select':'retry');
  }else if(panel==='pause'){
   html='<small>TAKE A BREATHER</small><h2>RELAY PAUSED</h2><p>Both bots are holding position.</p>'+button('RESUME RELAY','resume')+'<div class="row">'+button('CIRCUITS','select',false)+button('SETTINGS','settings',false)+'</div>';
  }else if(panel==='select'){
@@ -56,21 +55,22 @@ function paint(){
  $('circuit').textContent='CIRCUIT '+num;$('stage-num').textContent=num;$('stage-name').textContent=L.name.toUpperCase();
  $('meter-a').style.setProperty('--fill',r.dist[0]+'%');$('meter-b').style.setProperty('--fill',r.dist[1]+'%');
  $('fuses').textContent='◆'.repeat(3-r.hits)+'◇'.repeat(r.hits);$('fuses').setAttribute('aria-label',(3-r.hits)+' fuses');
- $('music').setAttribute('aria-pressed',String(p.music));$('music').setAttribute('aria-label',p.music?'Music on':'Music off');
- const a=$('action'),cue=$('cue'),both=r.dist.every(x=>x<100),brake=!both||bothBlocked(r);
- a.disabled=!!panel;
- const word=r.mode==='ready'?'GO LIVE':r.active<0?'GO':brake?'BRAKE':'SWITCH POWER';
- if(a.dataset.label!==word){a.dataset.label=word;a.innerHTML=word+' <b aria-hidden="true">'+(word==='SWITCH POWER'?'⇄':word==='BRAKE'?'■':'→')+'</b>';}
- a.dataset.lane=r.active===1?'b':'a';
- let note='GREEN = GO · RED = SWITCH',danger=false;
+ const a=$('action'),cue=$('cue'),hint=$('hint'),both=r.dist.every(x=>x<100);
+ const canSwitch=r.mode==='ride'&&both&&r.active>=0;
+ a.disabled=!!panel||art.available===false||r.mode==='ride'&&!canSwitch;
+ const label=r.mode==='ready'?'Tap to start':'Switch power';
+ if(a.dataset.label!==label){a.dataset.label=label;a.setAttribute('aria-label',label);}
+ $('menu').setAttribute('aria-label',r.mode==='ride'&&!panel?'Pause':'Settings');
+ const danger=canSwitch&&gateThreat(r,r.active);
+ let note='TAP TO START',detail='One tap switches bots';
  if(r.mode==='ride'){
-  const lane=r.active<0?goLane(r):r.active;
-  danger=gateThreat(r,lane);
-  if(r.active<0)note=danger?'WAIT FOR GREEN':'GREEN WINDOW · GO';
-  else if(danger)note=brake?'RED AHEAD · BRAKE!':'RED AHEAD · SWITCH!';
-  else note=(lane?'◆ B':'▲ A')+' POWERED'+(both?' · SWITCH TO CHANGE':' · LAST BOT');
+  note=r.active<0?'WAITING FOR GREEN':!both?'AUTO DOCKING':danger?'RED AHEAD · TAP!':'TAP TO SWITCH';
+  detail=r.active<0?'Power resumes automatically':!both?'Final bot heads to the dock':(r.active===0?'▲ A':'◆ B')+' has power';
+ }else if(r.mode==='win'||r.mode==='loss'){
+  note='';detail='';
  }
- cue.textContent=note;cue.dataset.danger=String(danger);
+ if(art.available===false){note='3D GRAPHICS UNAVAILABLE';detail='Try a browser with WebGL enabled';}
+ cue.textContent=note;hint.textContent=detail;cue.dataset.danger=String(danger);
 }
 function pause(which='pause'){
  panel=which;audio.update(false);persist();drawPanel();paint();
@@ -84,16 +84,16 @@ function load(index){
  checkpoint=0;persist();drawPanel();paint();
 }
 function action(){
- if(panel)return;
+ if(panel||art.available===false)return;
  audio.unlock();
  if(begin(r)){host.start();audio.sfx('start');}
- else if(toggle(r)){audio.sfx('switch');}
+ else if(toggle(r)){audio.sfx('switch');art.burst({type:'switch',lane:r.active,at:r.dist[r.active]});}
  else return;
  persist();paint();
 }
 function musicToggle(){audio.unlock();p=profile({...p,music:!p.music});saveProfile();paint();if(panel==='settings')drawPanel();}
 $('action').addEventListener('click',action);
-$('music').addEventListener('click',musicToggle);
+$('dock').addEventListener('click',action);
 $('menu').addEventListener('click',()=>{audio.unlock();panel==='settings'?back():pause(r.mode==='ride'&&!panel?'pause':'settings');});
 $('panel').addEventListener('click',e=>{
  const id=e.target.closest('button')?.dataset.action;if(!id)return;
@@ -124,7 +124,7 @@ function frame(now){
  const playing=r.mode==='ride'&&!panel;
  audio.update(playing&&p.music,Math.min(1,(r.dist[0]+r.dist[1])/180+r.combo*.03));
  if(playing){
-  for(const ev of advance(r,dt)){
+  for(const ev of pilot(r,dt)){
    if(ev.type==='finish'){
     host.end();p=commit(r,p);saveProfile();panel='result';drawPanel();paint();
     audio.sfx(r.mode==='win'?'win':'loss');audio.update(false);

@@ -33,11 +33,8 @@ export function begin(r){
  r.mode='ride';return true;
 }
 export function toggle(r){
- if(r.mode!=='ride')return false;
- const both=r.dist.every(x=>x<100);
- if(r.active<0)r.active=goLane(r);
- else if(!both||bothBlocked(r))r.active=-1;
- else r.active=1-r.active;
+ if(r.mode!=='ride'||r.active<0||r.dist.some(x=>x>=100))return false;
+ r.active=1-r.active;
  r.swaps++;return true;
 }
 export function gateState(level,lane,index,time){
@@ -61,6 +58,17 @@ export function bothBlocked(r){
 export function goLane(r){
  const lanes=[0,1].filter(i=>r.dist[i]<100);
  return lanes.find(i=>!gateThreat(r,i))??lanes[0];
+}
+export function pilot(r,dt){
+ if(r.mode!=='ride')return [];
+ const lastBot=r.dist.some(x=>x>=100);
+ if(r.active<0){
+  const next=goLane(r);
+  if(!gateThreat(r,next))r.active=next;
+ }else if(bothBlocked(r)||lastBot&&gateThreat(r,r.active)){
+  r.active=-1;
+ }
+ return advance(r,dt);
 }
 export function advance(r,dt){
  if(r.mode!=='ride')return [];

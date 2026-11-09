@@ -37,7 +37,7 @@ export class RelayAudio {
   const c=this.ctx;if(!c||c.state!=='running')return;
   const now=c.currentTime;
   if(active!==this.playing){
-   this.playing=active;this.music.gain.cancelScheduledValues(now);this.music.gain.setTargetAtTime(active?.57:0,now,.042);
+   this.playing=active;this.music.gain.cancelScheduledValues(now);this.music.gain.setTargetAtTime(active?.66:0,now,.042);
    if(active)this.next=now+.026;
   }
   if(!active)return;
@@ -48,6 +48,7 @@ export class RelayAudio {
    if([0,6,10,14].includes(i))this.tone(t,131,43,.145,i===0?.48:.30,'sine',this.music);
    if(i===4||i===12){this.drum(t,1400,.15,.24,this.music);this.tone(t,200,98,.11,.19,'triangle',this.music);}
    if(i%2===0||i===15)this.drum(t,6500,i%4===2?.065:.032,i%4===2?.12:.073,this.music);
+   if(intensity>.42&&(i===3||i===11))this.drum(t,7800,.043,.065,this.music);
    if([0,2,3,6,8,10,11,14].includes(i)){
     const note=bass[(bar*2+(i>=8?1:0))%bass.length];
     this.tone(t,hz(note),hz(note)*.987,.16,.14,'sawtooth',this.music,420+intensity*550);

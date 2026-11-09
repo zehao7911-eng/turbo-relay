@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {LEVELS,newRun,profile,restore,begin,toggle,advance,stars,commit,mergeProfile,gateState,nextGate,goLane,gateThreat,bothBlocked} from './core.mjs';
+import {LEVELS,newRun,profile,restore,begin,toggle,advance,pilot,stars,commit,mergeProfile,gateState,nextGate,goLane,gateThreat,bothBlocked} from './core.mjs';
 let checks=0;
 function check(value,message){assert.ok(value,message);checks++;}
 function course(r,dt,lead=.78){
@@ -8,8 +8,8 @@ function course(r,dt,lead=.78){
   const lane=r.active<0?goLane(r):r.active,g=nextGate(r,lane);
   const eta=g?(g.at-r.dist[lane])/L.speed:Infinity;
   const open=g?gateState(r.level,lane,g.index,r.t+eta).open:true;
-  if(r.t-last>.25&&(r.active<0?!gateThreat(r,lane):eta<lead&&!open)){toggle(r);last=r.t;}
-  events.push(...advance(r,dt));
+  if(r.active>=0&&r.dist.every(d=>d<100)&&r.t-last>.25&&eta<lead&&!open&&!gateThreat(r,1-lane)){toggle(r);last=r.t;}
+  events.push(...pilot(r,dt));
  }
  return events;
 }
@@ -42,10 +42,14 @@ for(let i=0;i<180;i++)advance(idle,1/60);
 check(idle.hits===1&&idle.dist.every((x,i)=>x===stopped[i]),'idle after crash does not burn more fuses');
 const danger=newRun(3);begin(danger);danger.t=1.2;danger.dist=[21,31];
 check(bothBlocked(danger),'dual red-window fixture');
-toggle(danger);advance(danger,.05);
-check(danger.active===-1&&danger.dist[0]===21&&danger.dist[1]===31,'one brake tap safely stops both bots');
-while(gateThreat(danger,goLane(danger)))advance(danger,1/60);
-toggle(danger);check(danger.active===goLane(danger),'GO chooses a safe unfinished lane');
+pilot(danger,.05);
+check(danger.active===-1&&danger.dist[0]===21&&danger.dist[1]===31,'both red approaches brake automatically');
+check(!toggle(danger),'tapping cannot force motion through two red gates');
+while(danger.active<0)pilot(danger,1/60);
+check(danger.active===goLane(danger),'automatic restart chooses a safe unfinished lane');
+const finalBot=newRun();begin(finalBot);finalBot.dist[1]=100;
+check(!toggle(finalBot),'final bot requires no tap');
+course(finalBot,1/60);check(finalBot.mode==='win'&&finalBot.hits===0,'final bot automatically times gates and docks');
 const lastFuse=newRun(1);begin(lastFuse);lastFuse.hits=2;let finish=0;
 for(let i=0;i<1000&&lastFuse.mode==='ride';i++)finish+=advance(lastFuse,1/60).filter(e=>e.type==='finish').length;
 check(lastFuse.mode==='loss'&&lastFuse.hits===3&&finish===1,'third closed-gate hit sends one loss');
